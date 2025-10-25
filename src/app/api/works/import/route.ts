@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { parseStringPromise } from 'xml2js'
 import stringSimilarity from 'string-similarity'
 import { Buffer } from 'node:buffer'
-import { progressStatus } from '../status/route' // ★ 進捗ステータスをインポート
+import { progressStatus } from '@/lib/progress' // ← 変更
 
 // === Syoboiキャッシュ（アプリ実行中のみ保持） ===
 const syoboiCache = new Map<string, string>()
