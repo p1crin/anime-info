@@ -214,9 +214,9 @@ export default function ImportButton() {
     if (!mounted) return <div className="p-6 text-gray-400">Loading...</div>;
 
     return (
-        <div className="max-w-2/3 mx-auto p-6 text-gray-200">
+        <div className="max-w-full mx-auto p-4 sm:p-6 text-gray-200">
             {/* 認証操作 */}
-            <div className="flex flex-wrap gap-3 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                 <button
                     onClick={checkAuth}
                     className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
@@ -496,13 +496,14 @@ function WorksTable() {
                 );
             },
         },
-        { accessorKey: "media_text", header: "媒体" },
+        { accessorKey: "media_text", header: "媒体", className: "hidden sm:table-cell" },
         {
             accessorKey: "season_name_text",
             header: "シーズン",
             sortingFn: seasonSortingFn,
+            className: "hidden md:table-cell"
         },
-        { accessorKey: "watchers_count", header: "視聴者数" },
+        { accessorKey: "watchers_count", header: "視聴者数", className: "hidden lg:table-cell" },
         {
             accessorKey: "work_themes",
             header: "OPテーマ",
@@ -549,17 +550,17 @@ function WorksTable() {
     return (
         <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4">
             {/* プレイリスト作成ボタンを検索バー横に追加 */}
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
                 <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder="検索..."
-                    className="flex-1 bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full sm:flex-1 bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
                 <button
                     onClick={() => setPlaylistDialogOpen(true)}
                     disabled={selectedRows.size === 0 || playlistLoading}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white font-medium transition flex items-center gap-2"
+                    className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white font-medium transition flex items-center gap-2"
                 >
                     {playlistLoading ? (
                         <>
@@ -635,7 +636,7 @@ function WorksTable() {
             </div>
 
             {/* ページネーション */}
-            <div className="flex items-center justify-between mt-4 text-sm text-gray-400">
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
                 <div>
                     全 {table.getFilteredRowModel().rows.length} 件中 (
                     {table.getState().pagination.pageIndex + 1} /{" "}
