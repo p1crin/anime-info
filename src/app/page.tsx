@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function AuthPage() {
     const [annictAuthStatus, setAnnictAuthStatus] = useState<string | null>(null);
@@ -9,23 +10,34 @@ export default function AuthPage() {
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
 
+    // 認証状態をまとめて管理
+    const [authChecked, setAuthChecked] = useState(false);
+
     useEffect(() => {
         setMounted(true);
-        checkAuth();
-        checkSpotifyAuth();
+
+        // 両方の認証をチェックしてからリダイレクト判定
+        Promise.all([checkAuth(), checkSpotifyAuth()]).then(() => {
+            setAuthChecked(true);
+        });
 
         // URLパラメータをチェックして認証状態を更新
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('spotify_success')) {
             setSpotifyAuthStatus('Spotify認証に成功しました！');
-            // 認証済みなら自動で /works にリダイレクト
-            setTimeout(() => router.push('/works'), 2000);
             window.history.replaceState({}, '', window.location.pathname);
         } else if (urlParams.get('spotify_error')) {
             setSpotifyAuthStatus(`Spotify認証エラー: ${urlParams.get('spotify_error')}`);
             window.history.replaceState({}, '', window.location.pathname);
         }
     }, []);
+
+    // 認証状態が変更された時にリダイレクト
+    useEffect(() => {
+        if (authChecked && annictAuthStatus?.includes("認証済み") && spotifyAuthStatus?.includes("認証済み")) {
+            router.push('/works');
+        }
+    }, [authChecked, annictAuthStatus, spotifyAuthStatus, router]);
 
     const checkAuth = async () => {
         try {
@@ -36,13 +48,10 @@ export default function AuthPage() {
                     ? "Annict認証済み"
                     : "Annict未認証"
             );
-
-            // 両方認証済みなら /works にリダイレクト
-            if (data.authenticated && spotifyAuthStatus?.includes("認証済み")) {
-                router.push('/works');
-            }
+            return data.authenticated;
         } catch (error) {
             setAnnictAuthStatus("Annict認証状態確認エラー");
+            return false;
         }
     };
 
@@ -55,13 +64,10 @@ export default function AuthPage() {
                     ? "Spotify認証済み"
                     : "Spotify未認証"
             );
-
-            // 両方認証済みなら /works にリダイレクト
-            if (annictAuthStatus?.includes("認証済み") && data.authenticated) {
-                router.push('/works');
-            }
+            return data.authenticated;
         } catch (error) {
             setSpotifyAuthStatus("Spotify認証状態確認エラー");
+            return false;
         }
     };
 
@@ -82,14 +88,14 @@ export default function AuthPage() {
                 {/* 認証状態 */}
                 <div className="space-y-4 mb-8">
                     <div className={`px-4 py-3 rounded-lg text-sm font-medium ${annictAuthStatus?.includes("認証済み")
-                            ? "bg-green-900/40 text-green-200 border border-green-700"
-                            : "bg-red-900/40 text-red-300 border border-red-700"
+                        ? "bg-green-900/40 text-green-200 border border-green-700"
+                        : "bg-red-900/40 text-red-300 border border-red-700"
                         }`}>
                         <strong>Annict:</strong> {annictAuthStatus}
                     </div>
                     <div className={`px-4 py-3 rounded-lg text-sm font-medium ${spotifyAuthStatus?.includes("認証済み")
-                            ? "bg-green-900/40 text-green-200 border border-green-700"
-                            : "bg-red-900/40 text-red-300 border border-red-700"
+                        ? "bg-green-900/40 text-green-200 border border-green-700"
+                        : "bg-red-900/40 text-red-300 border border-red-700"
                         }`}>
                         <strong>Spotify:</strong> {spotifyAuthStatus}
                     </div>
@@ -97,49 +103,22 @@ export default function AuthPage() {
 
                 {/* 認証ボタン */}
                 <div className="space-y-4">
-                    <div className="flex gap-3">
-                        <button
-                            onClick={checkAuth}
-                            className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-white font-medium"
-                        >
-                            Check Annict Auth
-                        </button>
-                        <a
-                            href="/api/annict/auth"
-                            className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
-                        >
-                            Login with Annict
-                        </a>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button
-                            onClick={checkSpotifyAuth}
-                            className="flex-1 px-4 py-3 bg-purple-700 hover:bg-purple-600 rounded-lg transition text-white font-medium"
-                        >
-                            Check Spotify Auth
-                        </button>
-                        <a
-                            href="/api/spotify/auth"
-                            className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
-                        >
-                            Login with Spotify
-                        </a>
-                    </div>
-                </div>
-
-                {/* 説明文 */}
-                <div className="mt-8 text-center">
-                    <p className="text-sm text-gray-400 mb-4">
-                        両方のサービスで認証が完了すると、自動的に作品管理ページに移動します。
-                    </p>
                     <a
-                        href="/works"
-                        className="text-blue-400 hover:text-blue-300 text-sm underline"
+                        href="/api/annict/auth"
+                        className="block w-full px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
                     >
-                        直接作品管理ページへ →
+                        Login with Annict
+                    </a>
+
+                    <a
+                        href="/api/spotify/auth"
+                        className="block w-full px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
+                    >
+                        Login with Spotify
                     </a>
                 </div>
+
+                {/* 説明文と直接リンクは削除 */}
             </div>
         </div>
     );

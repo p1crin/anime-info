@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
 
     const data = await tokenRes.json();
 
-    // Cookieに保存（httpOnly）し、/works へリダイレクト
-    const res = NextResponse.redirect(new URL('/works', req.url));
+    // 🔴 認証ページにリダイレクト
+    const res = NextResponse.redirect(new URL('/?annict_success=true', req.url));
     res.cookies.set("annict_token", data.access_token, { path: "/", maxAge: 60 * 60 * 24 * 7, httpOnly: true });
     return res;
 }
