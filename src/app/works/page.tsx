@@ -132,7 +132,7 @@ export default function ImportButton() {
     const [mounted, setMounted] = useState(false);
 
     // 🔴 ステータス選択のstateを追加
-    const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['watched'])
+    const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
 
     const statusOptions = [
         { value: 'wanna_watch', label: '見たい' },
@@ -429,8 +429,8 @@ export default function ImportButton() {
                                             }
                                         }}
                                         className={`flex items-center justify-center px-4 py-3 rounded-lg cursor-pointer transition-all duration-200 font-medium text-sm ${selectedStatuses.includes(status.value)
-                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
-                                                : 'bg-gray-700/50 text-gray-300 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-600/50'
+                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
+                                            : 'bg-gray-700/50 text-gray-300 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-600/50'
                                             }`}
                                     >
                                         {status.label}
@@ -442,13 +442,16 @@ export default function ImportButton() {
                                     </button>
                                 ))}
                             </div>
+                            {selectedStatuses.length === 0 && (
+                                <p className="text-sm text-gray-400 mt-2">※ インポートするステータスを選択してください</p>
+                            )}
                         </div>
 
                         <div className="flex justify-center">
                             <button
                                 onClick={handleImport}
-                                disabled={loading}
-                                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                disabled={loading || selectedStatuses.length === 0}  // 🔴 ステータスが選択されていない場合は無効化
+                                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
                             >
                                 {loading ? (
                                     <div className="flex items-center">
@@ -511,8 +514,8 @@ export default function ImportButton() {
 
 const getSeasonSortValue = (seasonString: string | undefined): number => {
     if (!seasonString) return 0;
-    const seasonMap: Record<string, number> = { 春: 1, 夏: 2, 秋: 3, 冬: 4 };
-    const match = seasonString.match(/(\d{4})年(春|夏|秋|冬)/);
+    const seasonMap: Record<string, number> = { 冬: 1, 春: 2, 夏: 3, 秋: 4 };
+    const match = seasonString.match(/(\d{4})年(冬|夏|秋|春)/);
     if (match) return parseInt(match[1], 10) + seasonMap[match[2]] / 10;
     const yearMatch = seasonString.match(/(\d{4})/);
     return yearMatch ? parseInt(yearMatch[1], 10) : 0;

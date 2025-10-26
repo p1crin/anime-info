@@ -35,12 +35,12 @@ export default function AuthPage() {
         }
     }, []);
 
-    // 🔴 自動リダイレクト時にuser_idをURLパラメータに設定
-    useEffect(() => {
-        if (authChecked && annictAuthStatus?.includes("認証済み") && spotifyAuthStatus?.includes("認証済み") && userId) {
-            router.push(`/works?user_id=${userId}`);
-        }
-    }, [authChecked, annictAuthStatus, spotifyAuthStatus, userId, router]);
+    // 🔴 自動リダイレクトを削除（コメントアウト）
+    // useEffect(() => {
+    //     if (authChecked && annictAuthStatus?.includes("認証済み") && spotifyAuthStatus?.includes("認証済み") && userId) {
+    //         router.push(`/works?user_id=${userId}`);
+    //     }
+    // }, [authChecked, annictAuthStatus, spotifyAuthStatus, userId, router]);
 
     const checkAuth = async () => {
         try {
@@ -149,6 +149,17 @@ export default function AuthPage() {
                 </div>
 
                 {/* 🔴 古い認証ボタンは削除 */}
+                <div className="mt-8 text-center">
+                    <p className="text-sm text-gray-400 mb-4">
+                        両方のサービスで認証が完了しました。作品データの管理を開始できます。
+                    </p>
+                    <button
+                        onClick={() => router.push(`/works?user_id=${userId}`)}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-medium transition"
+                    >
+                        作品管理へ →
+                    </button>
+                </div>
             </div>
         </div>
     );

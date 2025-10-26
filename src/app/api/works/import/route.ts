@@ -32,7 +32,9 @@ async function fetchSyoboiData(tid: string): Promise<string | null> {
     for (let attempt = 1; attempt <= 3; attempt++) {
         try {
             const res = await fetch(syoboiUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AnimeSyncBot/1.0)' },
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                }
             })
             const text = await res.text()
 
@@ -55,7 +57,7 @@ async function fetchSyoboiData(tid: string): Promise<string | null> {
         } catch (err: any) {
             lastError = err
             console.warn(`Attempt ${attempt} failed for TID=${tid}: ${err.message}`)
-            const wait = err.message.includes('Cloudflare') ? 10000 : 2000
+            const wait = err.message.includes('Cloudflare') ? 15000 : 3000  // 15秒に延長
             console.log(`Waiting ${wait / 1000}s before retry...`)
             await delay(wait)
         }
@@ -346,13 +348,15 @@ export async function POST(request: Request) {
     }
 
     // 🔴 リクエストからステータスを取得
-    const { statuses = ['watched'] } = await request.json() as { statuses?: string[] }
+    const { statuses = [] } = await request.json() as { statuses?: string[] }
 
     // 🔴 ステータスを検証
     const validStatuses = ['wanna_watch', 'watching', 'watched', 'on_hold', 'stop_watching']
     const filteredStatuses = statuses.filter(s => validStatuses.includes(s))
+
+    // 🔴 何も選択されていない場合はエラー
     if (filteredStatuses.length === 0) {
-        filteredStatuses.push('watched') // デフォルト
+        return NextResponse.json({ error: '少なくとも1つのステータスを選択してください' }, { status: 400 })
     }
 
     // 🔴 ステータスをカンマ区切りでAPIに渡す
@@ -370,25 +374,49 @@ export async function POST(request: Request) {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const fetchAll = true
+    // 🔴 各ステータスに対して個別にAPIを呼び出す
     const allWorks: any[] = []
-    let page = 1
-    let hasNext = true
+    const seenIds = new Set<number>() // 重複防止用
 
-    while (hasNext) {
-        const worksRes = await fetch(
-            `https://api.annict.com/v1/me/works?filter_status=${statusParam}&page=${page}&access_token=${annictToken}`
-        )
-        if (!worksRes.ok) {
-            progressStatus.status = 'error';
-            progressStatus.message = `Failed to fetch works from Annict (Status: ${worksRes.status})`;
-            return NextResponse.json({ error: 'Failed to fetch works from Annict' }, { status: 502 })
+    for (const status of filteredStatuses) {
+        console.log(`Fetching works for status: ${status}`)
+        let page = 1
+        let hasNext = true
+
+        while (hasNext) {
+            const worksRes = await fetch(
+                `https://api.annict.com/v1/me/works?filter_status=${status}&page=${page}&access_token=${annictToken}`
+            )
+
+            if (!worksRes.ok) {
+                progressStatus.status = 'error';
+                progressStatus.message = `Failed to fetch works from Annict (Status: ${worksRes.status})`;
+                return NextResponse.json({ error: 'Failed to fetch works from Annict' }, { status: 502 })
+            }
+
+            const worksJson = await worksRes.json()
+            const newWorks = worksJson.works || []
+
+            // 🔴 重複チェックをして追加
+            for (const work of newWorks) {
+                if (!seenIds.has(work.id)) {
+                    seenIds.add(work.id)
+                    allWorks.push(work)
+                }
+            }
+
+            if (!fetchAll || !worksJson.next_page) {
+                hasNext = false
+            } else {
+                page = worksJson.next_page
+            }
+
+            // 🔴 APIレート制限対策
+            await delay(200)
         }
-
-        const worksJson = await worksRes.json()
-        allWorks.push(...(worksJson.works || []))
-        if (!fetchAll || !worksJson.next_page) hasNext = false
-        else page = worksJson.next_page
     }
+
+    console.log(`Total works fetched: ${allWorks.length} (from ${filteredStatuses.length} statuses)`)
 
     // ★ 総作品数を設定
     progressStatus.total = allWorks.length;
@@ -425,24 +453,7 @@ export async function POST(request: Request) {
         // ★ 進捗メッセージを更新
         progressStatus.message = `作品を処理中: ${title}`;
 
-        let themes = { op: [], ed: [], in: [] } as {
-            op: { title: string; artist: string; episode: string }[]
-            ed: { title: string; artist: string; episode: string }[]
-            in: { title: string; artist: string; episode: string }[]
-        }
-
-        if (syobocal_tid) {
-            const comment = await fetchSyoboiData(syobocal_tid)
-            if (comment) {
-                themes = extractThemes(comment) as {
-                    op: { title: string; artist: string; episode: string }[]
-                    ed: { title: string; artist: string; episode: string }[]
-                    in: { title: string; artist: string; episode: string }[]
-                }
-            }
-        }
-
-        // 🔴 既存データチェック（work upsertの前に）
+        // 🔴 既存データチェックを先に移動
         const { data: existingWork } = await supabase
             .from('works')
             .select('id')
@@ -451,13 +462,42 @@ export async function POST(request: Request) {
             .single()
 
         if (existingWork) {
-            console.log(`Work already exists for annict_id ${annict_id}, user ${userId}. Skipping Spotify API calls...`)
+            console.log(`Work already exists for annict_id ${annict_id}, user ${userId}. Skipping all processing...`)
             progressStatus.processed++;
             progressStatus.skipped++;
-            await delay(100);  // 既存データは短い遅延
+            await delay(50);  // 既存データは最小遅延
             continue;
         }
 
+        // 🔴 既存データがない場合のみSyoboi APIを呼び出し
+        let themes = { op: [], ed: [], in: [] } as {
+            op: { title: string; artist: string; episode: string }[]
+            ed: { title: string; artist: string; episode: string }[]
+            in: { title: string; artist: string; episode: string }[]
+        }
+
+        if (syobocal_tid) {
+            try {
+                const comment = await fetchSyoboiData(syobocal_tid)
+                if (comment) {
+                    themes = extractThemes(comment) as {
+                        op: { title: string; artist: string; episode: string }[]
+                        ed: { title: string; artist: string; episode: string }[]
+                        in: { title: string; artist: string; episode: string }[]
+                    }
+                }
+            } catch (error) {
+                if (error instanceof Error) {
+                    console.warn(`Failed to fetch Syoboi data for work ${title}:`, error.message)
+                } else {
+                    console.warn(`Failed to fetch Syoboi data for work ${title}:`, error)
+                }
+                // 🔴 エラーが発生しても処理を続行（テーマ曲情報なし）
+                themes = { op: [], ed: [], in: [] }
+            }
+        }
+
+        // 🔴 upsert処理
         const upsertRow = {
             annict_id: Number(annict_id),
             title: title || null,
@@ -483,7 +523,6 @@ export async function POST(request: Request) {
             user_id: userId,
         } as const
 
-        // 🔴 upsert は既存データがない場合のみ実行
         const { data: workData, error: workError } = await supabase
             .from('works')
             .upsert(upsertRow, { onConflict: 'annict_id,user_id' })
