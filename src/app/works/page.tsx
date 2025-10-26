@@ -150,17 +150,6 @@ export default function ImportButton() {
     }, []);
 
     const handleImport = async () => {
-        // // Annictトークンチェック
-        // const annictToken = document.cookie
-        //     .split('; ')
-        //     .find(row => row.startsWith('annict_token='))
-        //     ?.split('=')[1];
-
-        // if (!annictToken) {
-        //     alert('Annict認証が必要です。まずAnnictアカウントでログインしてください。');
-        //     return;
-        // }
-
         setLoading(true);
         setResult(null);
         try {
@@ -210,21 +199,35 @@ export default function ImportButton() {
         {
             id: 'select',
             header: ({ table }) => (
-                <input
-                    type="checkbox"
-                    checked={table.getFilteredRowModel().rows.length > 0 &&
-                        table.getFilteredRowModel().rows.every(row => selectedRows.has(row.original.id.toString()))}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                />
+                <div className="flex items-center justify-center">
+                    <input
+                        type="checkbox"
+                        checked={table.getFilteredRowModel().rows.length > 0 &&
+                            table.getFilteredRowModel().rows.every(row => selectedRows.has(row.original.id.toString()))}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="sr-only peer"
+                    />
+                    <div className="w-5 h-5 border-2 border-gray-500 rounded bg-gray-700 peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all duration-200 cursor-pointer flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-200" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
             ),
             cell: ({ row }) => (
-                <input
-                    type="checkbox"
-                    checked={selectedRows.has(row.original.id.toString())}
-                    onChange={(e) => handleSelectRow(row.original.id.toString(), e.target.checked)}
-                    className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                />
+                <div className="flex items-center justify-center">
+                    <input
+                        type="checkbox"
+                        checked={selectedRows.has(row.original.id.toString())}
+                        onChange={(e) => handleSelectRow(row.original.id.toString(), e.target.checked)}
+                        className="sr-only peer"
+                    />
+                    <div className="w-5 h-5 border-2 border-gray-500 rounded bg-gray-700 peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all duration-200 cursor-pointer flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity duration-200" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
             ),
         },
         {
@@ -298,7 +301,7 @@ export default function ImportButton() {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [pagination, setPagination] = useState<PaginationState>({
         pageIndex: 0,
-        pageSize: 50,
+        pageSize: 30,
     });
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false);
@@ -401,39 +404,82 @@ export default function ImportButton() {
             {/* 🔴 認証済みチェックを削除 - 代わりにuser_idチェック */}
             {userId ? (
                 <>
-                    {/* 🔴 ステータス選択UIとImportボタン */}
-                    <div className="mb-6">
-                        <h3 className="text-lg font-medium mb-3">インポートする作品のステータス</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                            {statusOptions.map(status => (
-                                <label key={status.value} className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedStatuses.includes(status.value)}
-                                        onChange={(e) => {
-                                            if (e.target.checked) {
-                                                setSelectedStatuses([...selectedStatuses, status.value])
-                                            } else {
+                    {/* 🔴 インポートエリア - カードデザインで区切る */}
+                    <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 mb-8">
+                        <div className="flex items-center mb-4">
+                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-xl font-semibold text-white">作品データのインポート</h2>
+                        </div>
+
+                        <div className="mb-6">
+                            <h3 className="text-lg font-medium mb-3 text-gray-200">インポートする作品のステータス</h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                {statusOptions.map(status => (
+                                    <button
+                                        key={status.value}
+                                        onClick={() => {
+                                            if (selectedStatuses.includes(status.value)) {
                                                 setSelectedStatuses(selectedStatuses.filter(s => s !== status.value))
+                                            } else {
+                                                setSelectedStatuses([...selectedStatuses, status.value])
                                             }
                                         }}
-                                        className="rounded border-gray-600 bg-gray-700 text-blue-600"
-                                    />
-                                    <span className="text-sm">{status.label}</span>
-                                </label>
-                            ))}
+                                        className={`flex items-center justify-center px-4 py-3 rounded-lg cursor-pointer transition-all duration-200 font-medium text-sm ${selectedStatuses.includes(status.value)
+                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
+                                                : 'bg-gray-700/50 text-gray-300 border-2 border-gray-600 hover:border-blue-500 hover:bg-gray-600/50'
+                                            }`}
+                                    >
+                                        {status.label}
+                                        {selectedStatuses.includes(status.value) && (
+                                            <svg className="w-4 h-4 ml-2" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-center">
+                            <button
+                                onClick={handleImport}
+                                disabled={loading}
+                                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl text-white font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                            >
+                                {loading ? (
+                                    <div className="flex items-center">
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                        インポート中...
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center">
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        作品をインポート ({selectedStatuses.length}ステータス)
+                                    </div>
+                                )}
+                            </button>
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleImport}
-                        disabled={loading}
-                        className="mt-8 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-medium transition disabled:opacity-50"
-                    >
-                        {loading ? "Importing..." : `Import Works (${selectedStatuses.join(', ')})`}
-                    </button>
+                    {/* 🔴 テーブルエリア - 別カードデザイン */}
+                    <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                        <div className="flex items-center mb-4">
+                            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
+                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-xl font-semibold text-white">作品一覧</h2>
+                        </div>
 
-                    <WorksTable />
+                        <WorksTable />
+                    </div>
                 </>
             ) : (
                 <div className="text-center py-16">
@@ -515,7 +561,7 @@ function WorksTable() {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [pagination, setPagination] = useState<PaginationState>({
         pageIndex: 0,
-        pageSize: 50,
+        pageSize: 30,
     });
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false);
@@ -714,7 +760,7 @@ function WorksTable() {
                 <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="検索..."
+                    placeholder="作品名で検索..."
                     className="w-full sm:flex-1 bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
                 <button

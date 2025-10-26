@@ -25,7 +25,14 @@ export async function GET() {
                 }, { status: 401 });
             }
 
-            return NextResponse.json({ authenticated: true });
+            // 🔴 user_idを取得して返す
+            const userData = await testRes.json();
+            const userId = userData.username.toString();
+
+            return NextResponse.json({
+                authenticated: true,
+                user_id: userId  // 🔴 user_idを追加
+            });
         } catch (apiError) {
             return NextResponse.json({
                 authenticated: false,

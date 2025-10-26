@@ -369,7 +369,7 @@ export async function POST(request: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const fetchAll = false
+    const fetchAll = true
     const allWorks: any[] = []
     let page = 1
     let hasNext = true

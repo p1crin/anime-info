@@ -13,6 +13,9 @@ export default function AuthPage() {
     // 認証状態をまとめて管理
     const [authChecked, setAuthChecked] = useState(false);
 
+    // 🔴 user_idをstateで管理
+    const [userId, setUserId] = useState<string | null>(null);
+
     useEffect(() => {
         setMounted(true);
 
@@ -32,12 +35,12 @@ export default function AuthPage() {
         }
     }, []);
 
-    // 認証状態が変更された時にリダイレクト
+    // 🔴 自動リダイレクト時にuser_idをURLパラメータに設定
     useEffect(() => {
-        if (authChecked && annictAuthStatus?.includes("認証済み") && spotifyAuthStatus?.includes("認証済み")) {
-            router.push('/works');
+        if (authChecked && annictAuthStatus?.includes("認証済み") && spotifyAuthStatus?.includes("認証済み") && userId) {
+            router.push(`/works?user_id=${userId}`);
         }
-    }, [authChecked, annictAuthStatus, spotifyAuthStatus, router]);
+    }, [authChecked, annictAuthStatus, spotifyAuthStatus, userId, router]);
 
     const checkAuth = async () => {
         try {
@@ -48,6 +51,12 @@ export default function AuthPage() {
                     ? "Annict認証済み"
                     : "Annict未認証"
             );
+
+            // 🔴 user_idを保存
+            if (data.user_id) {
+                setUserId(data.user_id);
+            }
+
             return data.authenticated;
         } catch (error) {
             setAnnictAuthStatus("Annict認証状態確認エラー");
@@ -78,19 +87,57 @@ export default function AuthPage() {
             <div className="max-w-md w-full bg-gray-800 rounded-lg shadow-xl p-8">
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold text-white mb-2">
-                        Anime to Spotify
+                        Anime List via Annict
                     </h1>
-                    <p className="text-gray-400">
-                        AnnictのアニメデータをSpotifyプレイリストに変換
-                    </p>
+
+                    {/* 🔴 使い方のセクションを再構成 */}
+                    <div className="text-left bg-gray-700/50 rounded-lg p-4 mb-6">
+                        <h2 className="text-lg font-semibold text-white mb-4">使い方</h2>
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="flex-shrink-0 w-8 h-8 text-white rounded-full flex items-center justify-center text-sm font-bold" style={{ backgroundColor: '#E57373' }}>1</div>
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-200">Annictでログイン</p>
+                                        <p className="text-xs text-gray-400">アニメ視聴データを取得</p>
+                                    </div>
+                                </div>
+                                <a
+                                    href="/api/annict/auth"
+                                    className="px-4 py-2 text-white font-medium text-sm transition rounded-lg"
+                                    style={{ backgroundColor: '#E57373' }}
+                                >
+                                    ログイン
+                                </a>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-200">Spotifyでログイン</p>
+                                        <p className="text-xs text-gray-400">プレイリスト作成機能</p>
+                                    </div>
+                                </div>
+                                <a
+                                    href="/api/spotify/auth"
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-medium text-sm transition rounded-lg"
+                                >
+                                    ログイン
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* 認証状態 */}
+                {/* 🔴 認証状態 */}
                 <div className="space-y-4 mb-8">
                     <div className={`px-4 py-3 rounded-lg text-sm font-medium ${annictAuthStatus?.includes("認証済み")
-                        ? "bg-green-900/40 text-green-200 border border-green-700"
-                        : "bg-red-900/40 text-red-300 border border-red-700"
-                        }`}>
+                        ? "text-white border"
+                        : "text-red-300 border border-red-700"
+                        }`}
+                        style={annictAuthStatus?.includes("認証済み") ? { backgroundColor: '#E57373', borderColor: '#E57373' } : {}}
+                    >
                         <strong>Annict:</strong> {annictAuthStatus}
                     </div>
                     <div className={`px-4 py-3 rounded-lg text-sm font-medium ${spotifyAuthStatus?.includes("認証済み")
@@ -101,24 +148,7 @@ export default function AuthPage() {
                     </div>
                 </div>
 
-                {/* 認証ボタン */}
-                <div className="space-y-4">
-                    <a
-                        href="/api/annict/auth"
-                        className="block w-full px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
-                    >
-                        Login with Annict
-                    </a>
-
-                    <a
-                        href="/api/spotify/auth"
-                        className="block w-full px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
-                    >
-                        Login with Spotify
-                    </a>
-                </div>
-
-                {/* 説明文と直接リンクは削除 */}
+                {/* 🔴 古い認証ボタンは削除 */}
             </div>
         </div>
     );
