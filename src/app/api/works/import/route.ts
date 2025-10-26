@@ -230,7 +230,7 @@ async function getSpotifyToken(): Promise<string | null> {
 }
 
 /**
- * Spotifyで楽曲検索
+ * Spotifyで楽曲検索（表記揺れ対応つき）
  */
 async function searchSpotifyTrack(
     animeTitle: string,
@@ -238,84 +238,87 @@ async function searchSpotifyTrack(
     artistNameRaw: string | null,
     token: string
 ): Promise<string | null> {
-    if (!songTitle?.trim()) return null
+    if (!songTitle?.trim()) return null;
 
-    const rawArtistName = artistNameRaw || ''
-    const optimizedQuery = createOptimizedQuery(songTitle, rawArtistName, animeTitle);
+    // === 表記揺れ候補リスト ===
+    const candidates = [
+        { title: songTitle, artist: artistNameRaw || '' },
+        // 半角・全角を統一してみる
+        {
+            title: songTitle.replace(/[！？”＂＆]/g, s => ({
+                '！': '!', '？': '?', '”': '"', '＂': '"', '＆': '&'
+            }[s] || s)), artist: artistNameRaw || ''
+        },
+        // 括弧内削除バージョン
+        { title: songTitle.replace(/\s*\(.*?\)\s*/g, '').trim(), artist: artistNameRaw || '' },
+        // アーティスト名からCVなどを削除して再挑戦
+        { title: songTitle, artist: cleanArtistName(artistNameRaw || '') },
+    ];
 
-    // クエリが空なら検索しない
-    if (!optimizedQuery.trim()) return null;
+    let lastError: Error | null = null;
 
-    const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(optimizedQuery)}&type=track&limit=5`
+    for (let attempt = 0; attempt < candidates.length && attempt < 3; attempt++) {
+        const { title, artist } = candidates[attempt];
+        const optimizedQuery = createOptimizedQuery(title, artist, animeTitle);
+        const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(optimizedQuery)}&type=track&limit=5`;
 
-    try {
-        const res = await fetch(url, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Accept-Language': 'ja',
-            },
-        })
+        try {
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}`, 'Accept-Language': 'ja' },
+            });
 
-        if (res.status === 429) {
-            console.warn('Spotify rate limit hit. Retrying after 10s...')
-            await delay(10000)
-            return searchSpotifyTrack(animeTitle, songTitle, artistNameRaw, token)
-        }
-
-        // 400 Bad Request (クエリが長すぎる等) のエラーもここで捕捉
-        if (!res.ok) throw new Error(`Spotify search failed: ${res.statusText} (Status: ${res.status})`);
-
-        const data = await res.json()
-        const items = data?.tracks?.items || []
-
-        if (items.length === 0) {
-            console.log(`Spotify: No results for "${songTitle}" (${rawArtistName}) (Query: ${optimizedQuery})`)
-            return null
-        }
-
-        let bestMatch: any = null
-        let bestScore = 0
-
-        const cleanedSongTitle = songTitle.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
-        const cleanedArtistName = cleanArtistName(rawArtistName).toLowerCase();
-
-        for (const item of items) {
-            const spotifyTitle = item.name || ''
-            const spotifyArtist = item.artists?.map((a: any) => a.name).join(', ') || ''
-
-            const titleScore = stringSimilarity.compareTwoStrings(cleanedSongTitle, spotifyTitle.toLowerCase())
-
-            // クリーニング後のアーティスト名との類似度を計算
-            const artistScore = stringSimilarity.compareTwoStrings(cleanedArtistName, spotifyArtist.toLowerCase())
-
-            // アーティスト情報が非常に冗長な場合（150文字超）、タイトル類似度のみを重視
-            const avgScore = rawArtistName.length > 150
-                ? titleScore
-                : (titleScore * 0.7 + artistScore * 0.3); // タイトル重視で重み付け
-
-            // 閾値を調整。冗長なアーティスト名の場合は50%でタイトルマッチすればOK
-            const requiredScore = rawArtistName.length > 150 ? 0.5 : 0.6;
-
-            if (avgScore > bestScore && avgScore >= requiredScore) {
-                bestScore = avgScore
-                bestMatch = item
+            if (res.status === 429) {
+                console.warn(`Spotify rate limit hit on attempt ${attempt + 1}. Retrying...`);
+                await delay(10000);
+                attempt--;
+                continue;
             }
-        }
 
-        if (bestMatch) {
-            console.log(
-                `Spotify match (${(bestScore * 100).toFixed(1)}%): "${bestMatch.name}" by ${bestMatch.artists[0].name} (Anime: ${animeTitle})`
-            )
-            return bestMatch.external_urls?.spotify || null
-        } else {
-            console.log(`Spotify: No sufficiently close match for "${songTitle}" (${rawArtistName}) (Query: ${optimizedQuery})`)
-            return null
+            if (!res.ok) throw new Error(`Spotify search failed (${res.status})`);
+
+            const data = await res.json();
+            const items = data?.tracks?.items || [];
+            if (items.length === 0) {
+                console.log(`Spotify: No results on attempt ${attempt + 1} for "${title}" (${artist})`);
+                continue; // 次の表記揺れパターンで再試行
+            }
+
+            // === 類似度スコアで最適一致を探す ===
+            let bestMatch: any = null;
+            let bestScore = 0;
+            const cleanedSongTitle = title.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+            const cleanedArtistName = cleanArtistName(artist).toLowerCase();
+
+            for (const item of items) {
+                const spotifyTitle = item.name.toLowerCase();
+                const spotifyArtist = item.artists?.map((a: any) => a.name).join(', ').toLowerCase() || '';
+                const titleScore = stringSimilarity.compareTwoStrings(cleanedSongTitle, spotifyTitle);
+                const artistScore = stringSimilarity.compareTwoStrings(cleanedArtistName, spotifyArtist);
+                const avgScore = artist.length > 150 ? titleScore : (titleScore * 0.7 + artistScore * 0.3);
+
+                if (avgScore > bestScore && avgScore >= 0.55) {
+                    bestScore = avgScore;
+                    bestMatch = item;
+                }
+            }
+
+            if (bestMatch) {
+                console.log(`Spotify match on attempt ${attempt + 1}: "${bestMatch.name}" (${(bestScore * 100).toFixed(1)}%)`);
+                return bestMatch.external_urls?.spotify || null;
+            }
+
+        } catch (err: any) {
+            lastError = err;
+            console.warn(`Attempt ${attempt + 1} failed: ${err.message}`);
+            await delay(1000);
         }
-    } catch (error) {
-        console.error(`Spotify search error for "${songTitle}" (${rawArtistName}) (Anime: ${animeTitle}):`, error)
-        return null
     }
+
+    console.error(`Spotify search failed for "${songTitle}" after 3 attempts`);
+    if (lastError) console.error(lastError);
+    return null;
 }
+
 
 // === メイン処理 ===
 export async function POST(request: Request) {
