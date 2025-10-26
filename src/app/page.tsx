@@ -12,11 +12,14 @@ export default function AuthPage() {
     useEffect(() => {
         setMounted(true);
         checkAuth();
+        checkSpotifyAuth();
 
         // URLパラメータをチェックして認証状態を更新
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('spotify_success')) {
             setSpotifyAuthStatus('Spotify認証に成功しました！');
+            // 認証済みなら自動で /works にリダイレクト
+            setTimeout(() => router.push('/works'), 2000);
             window.history.replaceState({}, '', window.location.pathname);
         } else if (urlParams.get('spotify_error')) {
             setSpotifyAuthStatus(`Spotify認証エラー: ${urlParams.get('spotify_error')}`);
@@ -78,18 +81,16 @@ export default function AuthPage() {
 
                 {/* 認証状態 */}
                 <div className="space-y-4 mb-8">
-                    <div className={`px-4 py-3 rounded-lg text-sm font-medium ${
-                        annictAuthStatus?.includes("認証済み")
+                    <div className={`px-4 py-3 rounded-lg text-sm font-medium ${annictAuthStatus?.includes("認証済み")
                             ? "bg-green-900/40 text-green-200 border border-green-700"
                             : "bg-red-900/40 text-red-300 border border-red-700"
-                    }`}>
+                        }`}>
                         <strong>Annict:</strong> {annictAuthStatus}
                     </div>
-                    <div className={`px-4 py-3 rounded-lg text-sm font-medium ${
-                        spotifyAuthStatus?.includes("認証済み")
+                    <div className={`px-4 py-3 rounded-lg text-sm font-medium ${spotifyAuthStatus?.includes("認証済み")
                             ? "bg-green-900/40 text-green-200 border border-green-700"
                             : "bg-red-900/40 text-red-300 border border-red-700"
-                    }`}>
+                        }`}>
                         <strong>Spotify:</strong> {spotifyAuthStatus}
                     </div>
                 </div>

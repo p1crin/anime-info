@@ -79,7 +79,8 @@ export async function GET(request: NextRequest) {
         }
 
         console.log('Redirecting to works page with success')
-        return NextResponse.redirect(new URL('/works?spotify_success=true', request.url))
+        // 認証成功時はルートページにリダイレクトし、認証状態をURLパラメータで伝える
+        return NextResponse.redirect(new URL('/?spotify_success=true', request.url))
     } catch (error) {
         console.error('Spotify callback error:', error)
         return NextResponse.redirect(new URL('/works?spotify_error=auth_failed', request.url))
