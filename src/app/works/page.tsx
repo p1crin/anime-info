@@ -15,6 +15,7 @@ import {
     SortingFn,
 } from "@tanstack/react-table";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 // === 型定義 ===
 type Theme = {
@@ -439,12 +440,12 @@ export default function ImportButton() {
                     <p className="text-gray-400 mb-4">
                         認証が必要です。
                     </p>
-                    <a
+                    <Link
                         href="/"
                         className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg text-lg font-medium transition"
                     >
                         認証ページへ
-                    </a>
+                    </Link>
                 </div>
             )}
 
