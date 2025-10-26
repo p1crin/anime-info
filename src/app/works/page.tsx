@@ -14,6 +14,7 @@ import {
     Row,
     SortingFn,
 } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
 
 // === 型定義 ===
 type Theme = {
@@ -126,38 +127,38 @@ function PlaylistDialog({ isOpen, onClose, onCreate, selectedCount }: PlaylistDi
 export default function ImportButton() {
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<string | null>(null);
-    const [authStatus, setAuthStatus] = useState<string | null>(null);
-    const [spotifyAuthStatus, setSpotifyAuthStatus] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
     const [mounted, setMounted] = useState(false);
+
+    // 🔴 ステータス選択のstateを追加
+    const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['watched'])
+
+    const statusOptions = [
+        { value: 'wanna_watch', label: '見たい' },
+        { value: 'watching', label: '見てる' },
+        { value: 'watched', label: '見た' },
+        { value: 'on_hold', label: '一時中断' },
+        { value: 'stop_watching', label: '視聴中止' }
+    ]
+
+    const router = useRouter();
 
     useEffect(() => {
         setMounted(true);
-        checkAuth();
-        checkSpotifyAuth();
-
-        // URLパラメータをチェック
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('spotify_success')) {
-            setSpotifyAuthStatus('Spotify認証に成功しました！');
-            // URLからパラメータを削除
-            window.history.replaceState({}, '', window.location.pathname);
-        } else if (urlParams.get('spotify_error')) {
-            setSpotifyAuthStatus(`Spotify認証エラー: ${urlParams.get('spotify_error')}`);
-            window.history.replaceState({}, '', window.location.pathname);
-        }
+        checkUserIdAndLoadData();
     }, []);
 
     const handleImport = async () => {
-        // Annictトークンチェック
-        const annictToken = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('annict_token='))
-            ?.split('=')[1];
+        // // Annictトークンチェック
+        // const annictToken = document.cookie
+        //     .split('; ')
+        //     .find(row => row.startsWith('annict_token='))
+        //     ?.split('=')[1];
 
-        if (!annictToken) {
-            alert('Annict認証が必要です。まずAnnictアカウントでログインしてください。');
-            return;
-        }
+        // if (!annictToken) {
+        //     alert('Annict認証が必要です。まずAnnictアカウントでログインしてください。');
+        //     return;
+        // }
 
         setLoading(true);
         setResult(null);
@@ -165,6 +166,7 @@ export default function ImportButton() {
             const res = await fetch("/api/works/import", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ statuses: selectedStatuses }), // 🔴 ステータスを送信
             });
 
             if (!res.ok) {
@@ -174,7 +176,7 @@ export default function ImportButton() {
 
             const data = await res.json();
             setResult(JSON.stringify(data, null, 2));
-            await checkAuth();
+            // await checkAuth(); // この関数は削除されたため、ここでは何もしない
             setTimeout(() => window.location.reload(), 1000);
         } catch (error: any) {
             setResult(`Error: ${error.message || error}`);
@@ -183,113 +185,270 @@ export default function ImportButton() {
         }
     };
 
-    const checkAuth = async () => {
-        try {
-            const res = await fetch("/api/auth/check");
-            const data = await res.json();
-            setAuthStatus(
-                data.authenticated
-                    ? "Authenticated with Annict"
-                    : `Not authenticated: ${data.error || "Unknown error"}`
-            );
-        } catch (error) {
-            setAuthStatus(`Error checking auth: ${error}`);
+    const checkUserIdAndLoadData = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentUserId = urlParams.get('user_id');
+
+        if (currentUserId) {
+            setUserId(currentUserId);
+        } else {
+            // 🔴 user_id がなければ認証ページにリダイレクト
+            router.push('/');
+            return;
+        }
+
+        // 🔴 データ読み込み
+        const listUrl = currentUserId ? `/api/works/list?user_id=${currentUserId}` : '/api/works/list';
+        const res = await fetch(listUrl);
+        const data = await res.json();
+        setRows(Array.isArray(data) ? data : []);
+    };
+
+    const columns = useMemo<ColumnDef<Work>[]>(() => [
+        // チェックボックス列を追加
+        {
+            id: 'select',
+            header: ({ table }) => (
+                <input
+                    type="checkbox"
+                    checked={table.getFilteredRowModel().rows.length > 0 &&
+                        table.getFilteredRowModel().rows.every(row => selectedRows.has(row.original.id.toString()))}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                />
+            ),
+            cell: ({ row }) => (
+                <input
+                    type="checkbox"
+                    checked={selectedRows.has(row.original.id.toString())}
+                    onChange={(e) => handleSelectRow(row.original.id.toString(), e.target.checked)}
+                    className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                />
+            ),
+        },
+        {
+            accessorKey: "title",
+            header: "タイトル",
+            cell: ({ row, getValue }) => {
+                const work = row.original;
+                const title = getValue<string>();
+                return (
+                    <div>
+                        {work.official_site_url ? (
+                            <a
+                                href={work.official_site_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:underline font-medium"
+                            >
+                                {title}
+                            </a>
+                        ) : (
+                            <span className="font-medium">{title}</span>
+                        )}
+                        {work.title_kana && (
+                            <div className="text-xs text-gray-500">
+                                {work.title_kana}
+                            </div>
+                        )}
+                    </div>
+                );
+            },
+        },
+        { accessorKey: "media_text", header: "媒体", className: "hidden sm:table-cell" },
+        {
+            accessorKey: "season_name_text",
+            header: "シーズン",
+            sortingFn: seasonSortingFn,
+            className: "hidden md:table-cell"
+        },
+        { accessorKey: "watchers_count", header: "視聴者数", className: "hidden lg:table-cell" },
+        {
+            accessorKey: "work_themes",
+            header: "OPテーマ",
+            cell: (info) => renderThemeCell(info.getValue<Theme[]>(), "op"),
+        },
+        {
+            accessorKey: "work_themes",
+            id: "ed_themes",
+            header: "EDテーマ",
+            cell: (info) => renderThemeCell(info.getValue<Theme[]>(), "ed"),
+        },
+    ], []);
+
+    const globalFilterFn = (row: Row<Work>, columnId: string, filterValue: string) => {
+        const k = filterValue.toLowerCase();
+        const r = row.original;
+        const themeText = (r.work_themes || [])
+            .map((t) => t.title)
+            .join(" ")
+            .toLowerCase();
+        return (
+            r.title.toLowerCase().includes(k) ||
+            r.title_kana.toLowerCase().includes(k) ||
+            r.media_text.toLowerCase().includes(k) ||
+            r.season_name_text.toLowerCase().includes(k) ||
+            themeText.includes(k)
+        );
+    };
+
+    const [rows, setRows] = useState<Work[]>([]);
+    const [q, setQ] = useState("");
+    const [sorting, setSorting] = useState<SortingState>([]);
+    const [pagination, setPagination] = useState<PaginationState>({
+        pageIndex: 0,
+        pageSize: 50,
+    });
+    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+    const [playlistDialogOpen, setPlaylistDialogOpen] = useState(false);
+    const [playlistLoading, setPlaylistLoading] = useState(false);
+
+    const table = useReactTable({
+        data: rows,
+        columns,
+        state: { sorting, pagination, globalFilter: q },
+        onSortingChange: setSorting,
+        onPaginationChange: setPagination,
+        onGlobalFilterChange: setQ,
+        globalFilterFn,
+        getCoreRowModel: getCoreRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getFilteredRowModel: getFilteredRowModel(),
+    });
+
+    // チェックボックスの処理
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            const allIds = new Set(table.getFilteredRowModel().rows.map(row => row.original.id.toString()));
+            setSelectedRows(allIds);
+        } else {
+            setSelectedRows(new Set());
         }
     };
 
-    const checkSpotifyAuth = async () => {
-        try {
-            const res = await fetch("/api/spotify/check");
-            const data = await res.json();
-            setSpotifyAuthStatus(
-                data.authenticated
-                    ? "Spotify認証済み"
-                    : "Spotify未認証"
-            );
-        } catch (error) {
-            setSpotifyAuthStatus("Spotify認証状態確認エラー");
+    const handleSelectRow = (id: string, checked: boolean) => {
+        const newSelected = new Set(selectedRows);
+        if (checked) {
+            newSelected.add(id);
+        } else {
+            newSelected.delete(id);
         }
+        setSelectedRows(newSelected);
     };
 
-    if (!mounted) return <div className="p-6 text-gray-400">Loading...</div>;
+    // プレイリスト作成
+    const handleCreatePlaylist = async (name: string, description: string) => {
+        setPlaylistLoading(true);
+        try {
+            // 選択された作品のSpotify URLを収集
+            const trackUrls: string[] = [];
+            selectedRows.forEach(id => {
+                const work = rows.find(r => r.id.toString() === id);
+                if (work?.work_themes) {
+                    work.work_themes.forEach(theme => {
+                        if (theme.spotify_url) {
+                            trackUrls.push(theme.spotify_url);
+                        }
+                    });
+                }
+            });
+
+            if (trackUrls.length === 0) {
+                alert('選択された作品にSpotifyリンクのある楽曲がありません。');
+                return;
+            }
+
+            const response = await fetch('/api/spotify/playlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name,
+                    description,
+                    trackUrls,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'プレイリスト作成に失敗しました');
+            }
+
+            const result = await response.json();
+
+            // 成功したらSpotifyでプレイリストを開く
+            if (result.playlistUrl) {
+                window.open(result.playlistUrl, '_blank');
+                alert(`プレイリスト「${result.playlistName}」を作成しました！\n${result.trackCount}曲を追加しました。`);
+            }
+
+            setSelectedRows(new Set());
+        } catch (error: any) {
+            console.error('Playlist creation error:', error);
+            alert(`プレイリスト作成エラー: ${error.message}`);
+        } finally {
+            setPlaylistLoading(false);
+        }
+    };
 
     return (
         <div className="max-w-full mx-auto p-4 sm:p-6 text-gray-200">
-            {/* 認証操作 */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-                <button
-                    onClick={checkAuth}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition"
-                >
-                    Check Annict Auth
-                </button>
-                <a
-                    href="/api/annict/auth"
-                    className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg transition"
-                >
-                    Login with Annict
-                </a>
-                <button
-                    onClick={checkSpotifyAuth}
-                    className="px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-lg transition"
-                >
-                    Check Spotify Auth
-                </button>
-                <a
-                    href="/api/spotify/auth"
-                    className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg transition"
-                >
-                    Login with Spotify
-                </a>
-            </div>
+            {/* 🔴 認証関連のUIを削除 */}
 
-            {/* 認証状態 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${authStatus?.includes("Authenticated")
-                        ? "bg-green-900/40 text-green-200 border border-green-700"
-                        : "bg-red-900/40 text-red-300 border border-red-700"
-                        }`}
-                >
-                    <strong>Annict:</strong> {authStatus}
-                </div>
-                <div
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${spotifyAuthStatus?.includes("認証済み")
-                        ? "bg-green-900/40 text-green-200 border border-green-700"
-                        : "bg-red-900/40 text-red-300 border border-red-700"
-                        }`}
-                >
-                    <strong>Spotify:</strong> {spotifyAuthStatus}
-                </div>
-            </div>
-
-            {/* 認証済みならテーブルとボタンを表示 */}
-            {authStatus?.includes("Authenticated") ? (
+            {/* 🔴 認証済みチェックを削除 - 代わりにuser_idチェック */}
+            {userId ? (
                 <>
+                    {/* 🔴 ステータス選択UIとImportボタン */}
+                    <div className="mb-6">
+                        <h3 className="text-lg font-medium mb-3">インポートする作品のステータス</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                            {statusOptions.map(status => (
+                                <label key={status.value} className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedStatuses.includes(status.value)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedStatuses([...selectedStatuses, status.value])
+                                            } else {
+                                                setSelectedStatuses(selectedStatuses.filter(s => s !== status.value))
+                                            }
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-700 text-blue-600"
+                                    />
+                                    <span className="text-sm">{status.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
                     <button
                         onClick={handleImport}
                         disabled={loading}
                         className="mt-8 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-medium transition disabled:opacity-50"
                     >
-                        {loading ? "Importing..." : "Import Works"}
+                        {loading ? "Importing..." : `Import Works (${selectedStatuses.join(', ')})`}
                     </button>
+
                     <WorksTable />
                 </>
             ) : (
                 <div className="text-center py-16">
                     <p className="text-gray-400 mb-4">
-                        Annictでログインしてアニメ情報をインポートしてください
+                        認証が必要です。
                     </p>
                     <a
-                        href="/api/annict/auth"
+                        href="/"
                         className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg text-lg font-medium transition"
                     >
-                        Annictでログイン
+                        認証ページへ
                     </a>
                 </div>
             )}
 
-            {/* 結果表示 */}
+            {/* 🔴 結果表示 */}
             {result && (
                 <pre className="mt-6 bg-gray-900 text-gray-300 p-4 rounded-lg text-xs overflow-x-auto border border-gray-700">
                     {result}

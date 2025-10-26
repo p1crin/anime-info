@@ -1,103 +1,145 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function AuthPage() {
+    const [annictAuthStatus, setAnnictAuthStatus] = useState<string | null>(null);
+    const [spotifyAuthStatus, setSpotifyAuthStatus] = useState<string | null>(null);
+    const [mounted, setMounted] = useState(false);
+    const router = useRouter();
+
+    useEffect(() => {
+        setMounted(true);
+        checkAuth();
+
+        // URLパラメータをチェックして認証状態を更新
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('spotify_success')) {
+            setSpotifyAuthStatus('Spotify認証に成功しました！');
+            window.history.replaceState({}, '', window.location.pathname);
+        } else if (urlParams.get('spotify_error')) {
+            setSpotifyAuthStatus(`Spotify認証エラー: ${urlParams.get('spotify_error')}`);
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    }, []);
+
+    const checkAuth = async () => {
+        try {
+            const res = await fetch("/api/auth/check");
+            const data = await res.json();
+            setAnnictAuthStatus(
+                data.authenticated
+                    ? "Annict認証済み"
+                    : "Annict未認証"
+            );
+
+            // 両方認証済みなら /works にリダイレクト
+            if (data.authenticated && spotifyAuthStatus?.includes("認証済み")) {
+                router.push('/works');
+            }
+        } catch (error) {
+            setAnnictAuthStatus("Annict認証状態確認エラー");
+        }
+    };
+
+    const checkSpotifyAuth = async () => {
+        try {
+            const res = await fetch("/api/spotify/check");
+            const data = await res.json();
+            setSpotifyAuthStatus(
+                data.authenticated
+                    ? "Spotify認証済み"
+                    : "Spotify未認証"
+            );
+
+            // 両方認証済みなら /works にリダイレクト
+            if (annictAuthStatus?.includes("認証済み") && data.authenticated) {
+                router.push('/works');
+            }
+        } catch (error) {
+            setSpotifyAuthStatus("Spotify認証状態確認エラー");
+        }
+    };
+
+    if (!mounted) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+
+    return (
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-gray-800 rounded-lg shadow-xl p-8">
+                <div className="text-center mb-8">
+                    <h1 className="text-3xl font-bold text-white mb-2">
+                        Anime to Spotify
+                    </h1>
+                    <p className="text-gray-400">
+                        AnnictのアニメデータをSpotifyプレイリストに変換
+                    </p>
+                </div>
+
+                {/* 認証状態 */}
+                <div className="space-y-4 mb-8">
+                    <div className={`px-4 py-3 rounded-lg text-sm font-medium ${
+                        annictAuthStatus?.includes("認証済み")
+                            ? "bg-green-900/40 text-green-200 border border-green-700"
+                            : "bg-red-900/40 text-red-300 border border-red-700"
+                    }`}>
+                        <strong>Annict:</strong> {annictAuthStatus}
+                    </div>
+                    <div className={`px-4 py-3 rounded-lg text-sm font-medium ${
+                        spotifyAuthStatus?.includes("認証済み")
+                            ? "bg-green-900/40 text-green-200 border border-green-700"
+                            : "bg-red-900/40 text-red-300 border border-red-700"
+                    }`}>
+                        <strong>Spotify:</strong> {spotifyAuthStatus}
+                    </div>
+                </div>
+
+                {/* 認証ボタン */}
+                <div className="space-y-4">
+                    <div className="flex gap-3">
+                        <button
+                            onClick={checkAuth}
+                            className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-white font-medium"
+                        >
+                            Check Annict Auth
+                        </button>
+                        <a
+                            href="/api/annict/auth"
+                            className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
+                        >
+                            Login with Annict
+                        </a>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={checkSpotifyAuth}
+                            className="flex-1 px-4 py-3 bg-purple-700 hover:bg-purple-600 rounded-lg transition text-white font-medium"
+                        >
+                            Check Spotify Auth
+                        </button>
+                        <a
+                            href="/api/spotify/auth"
+                            className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-500 rounded-lg transition text-white font-medium text-center"
+                        >
+                            Login with Spotify
+                        </a>
+                    </div>
+                </div>
+
+                {/* 説明文 */}
+                <div className="mt-8 text-center">
+                    <p className="text-sm text-gray-400 mb-4">
+                        両方のサービスで認証が完了すると、自動的に作品管理ページに移動します。
+                    </p>
+                    <a
+                        href="/works"
+                        className="text-blue-400 hover:text-blue-300 text-sm underline"
+                    >
+                        直接作品管理ページへ →
+                    </a>
+                </div>
+            </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+    );
 }

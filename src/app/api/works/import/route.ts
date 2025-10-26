@@ -316,13 +316,25 @@ async function searchSpotifyTrack(
 }
 
 // === メイン処理 ===
-export async function POST() {
+export async function POST(request: Request) {
     // Annict認証チェック
-    const annictToken = (await cookies()).get('annict_token')?.value
+    const cookieStore = await cookies()
+    const annictToken = cookieStore.get('annict_token')?.value
     if (!annictToken) {
         return NextResponse.json({
             error: 'Annict認証が必要です。Annictアカウントでログインしてください。'
         }, { status: 401 })
+    }
+
+    // 🔴 user_id を取得
+    // 🔴 Annict APIでユーザー情報を取得
+    const userRes = await fetch(`https://api.annict.com/v1/me?access_token=${annictToken}`);
+    const userData = await userRes.json();
+    const userId = userData.username.toString();
+    console.log(`userId=${userId}`);
+    if (!userId) {
+        console.log("userIdが取得できませんでした。" + cookieStore.get('sb-user-id'))
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
     // Spotify認証チェック
@@ -332,6 +344,19 @@ export async function POST() {
             error: 'Spotify認証に失敗しました。Spotify APIキーが正しく設定されているか確認してください。'
         }, { status: 500 })
     }
+
+    // 🔴 リクエストからステータスを取得
+    const { statuses = ['watched'] } = await request.json() as { statuses?: string[] }
+
+    // 🔴 ステータスを検証
+    const validStatuses = ['wanna_watch', 'watching', 'watched', 'on_hold', 'stop_watching']
+    const filteredStatuses = statuses.filter(s => validStatuses.includes(s))
+    if (filteredStatuses.length === 0) {
+        filteredStatuses.push('watched') // デフォルト
+    }
+
+    // 🔴 ステータスをカンマ区切りでAPIに渡す
+    const statusParam = filteredStatuses.join(',')
 
     // ★ ステータスを初期化
     progressStatus.status = 'running';
@@ -351,7 +376,7 @@ export async function POST() {
 
     while (hasNext) {
         const worksRes = await fetch(
-            `https://api.annict.com/v1/me/works?filter_status=watched&page=${page}&access_token=${annictToken}`
+            `https://api.annict.com/v1/me/works?filter_status=${statusParam}&page=${page}&access_token=${annictToken}`
         )
         if (!worksRes.ok) {
             progressStatus.status = 'error';
@@ -417,6 +442,22 @@ export async function POST() {
             }
         }
 
+        // 🔴 既存データチェック（work upsertの前に）
+        const { data: existingWork } = await supabase
+            .from('works')
+            .select('id')
+            .eq('annict_id', annict_id)
+            .eq('user_id', userId)
+            .single()
+
+        if (existingWork) {
+            console.log(`Work already exists for annict_id ${annict_id}, user ${userId}. Skipping Spotify API calls...`)
+            progressStatus.processed++;
+            progressStatus.skipped++;
+            await delay(100);  // 既存データは短い遅延
+            continue;
+        }
+
         const upsertRow = {
             annict_id: Number(annict_id),
             title: title || null,
@@ -439,9 +480,10 @@ export async function POST() {
             watchers_count: watchers_count || null,
             reviews_count: reviews_count || null,
             no_episodes: no_episodes || false,
-            user_id: '00000000-0000-0000-0000-000000000000',
+            user_id: userId,
         } as const
 
+        // 🔴 upsert は既存データがない場合のみ実行
         const { data: workData, error: workError } = await supabase
             .from('works')
             .upsert(upsertRow, { onConflict: 'annict_id,user_id' })
