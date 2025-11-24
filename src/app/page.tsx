@@ -148,10 +148,9 @@ export default function AuthPage() {
                     </div>
                 </div>
 
-                {/* 🔴 古い認証ボタンは削除 */}
                 <div className="mt-8 text-center">
                     <p className="text-sm text-gray-400 mb-4">
-                        両方のサービスで認証が完了しました。作品データの管理を開始できます。
+                        両方のサービスで認証が完了後、作品データの管理を開始できます。
                     </p>
                     <button
                         onClick={() => router.push(`/works?user_id=${userId}`)}
